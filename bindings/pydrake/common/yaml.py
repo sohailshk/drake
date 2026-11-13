@@ -776,6 +776,41 @@ def _yaml_dump_get_attribute(*, obj, name):
     return getattr(obj, name)
 
 
+def _find_union_match(*, obj, generic_args):
+    """Given an object and the type arguments of a Union (or Optional) schema,
+    returns the index of the argument that the object should be dumped as, or
+    None if there is no match.
+
+    An object that is an instance of one of the arguments always matches that
+    argument. Failing that, NumPy scalars (e.g., np.float32) match the argument
+    of the same kind, and an int (or NumPy integer) matches float, which is
+    consistent with how a plain (non-Union) int or float field is dumped.
+    """
+    origins = [typing.get_origin(x) or x for x in generic_args]
+    numpy_kinds = (
+        (np.bool_, bool),
+        (np.integer, int),
+        (np.floating, float),
+    )
+    matchers = [
+        lambda origin: isinstance(obj, origin),
+        lambda origin: any(
+            isinstance(obj, np_type) and origin is kind
+            for np_type, kind in numpy_kinds
+        ),
+        lambda origin: (
+            origin is float
+            and isinstance(obj, (int, np.integer))
+            and not isinstance(obj, bool)
+        ),
+    ]
+    for matcher in matchers:
+        for i, origin in enumerate(origins):
+            if matcher(origin):
+                return i
+    return None
+
+
 def _yaml_dump_typed_item(*, obj, schema):
     """Given an object ``obj`` and its type ``schema``, returns the plain YAML
     object that should be serialized. Objects that are already primitive types
@@ -828,21 +863,14 @@ def _yaml_dump_typed_item(*, obj, schema):
             if type(None) in generic_args:
                 return None
             raise RuntimeError(f"The {schema} does not allow None as a value")
-        match = None
-        for i, one_schema in enumerate(generic_args):
-            one_schema_origin = typing.get_origin(one_schema)
-            if one_schema_origin is None:
-                one_schema_origin = one_schema
-            if isinstance(obj, one_schema_origin):
-                match = i
-                break
+        match = _find_union_match(obj=obj, generic_args=generic_args)
         if match is None:
             raise RuntimeError(
                 f"A value of type {type(obj)} did not match any {schema}"
             )
-        union_schema = generic_args[i]
+        union_schema = generic_args[match]
         result = _yaml_dump_typed_item(obj=obj, schema=union_schema)
-        if i != 0:
+        if match != 0:
             if union_schema in _PRIMITIVE_JSON_TYPES:
                 result = _SchemaDumper.ExplicitScalar(
                     value=result, schema=union_schema

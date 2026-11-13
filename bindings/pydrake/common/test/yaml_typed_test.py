@@ -1346,6 +1346,34 @@ class TestYamlTypedWrite(unittest.TestCase):
             actual_doc = yaml_dump_typed(LegacyOptionalStruct(value=value))
             self.assertEqual(actual_doc, expected_doc)
 
+    def test_write_optional_numeric_scalars(self):
+        # An Optional field accepts the same numeric scalars as a plain field.
+        @dc.dataclass
+        class OptionalNumbers:
+            a_float: float | None = None
+            an_int: int | None = None
+            a_bool: bool | None = None
+            a_float_or_str: float | str = ""
+
+        cases = [
+            (dict(a_float=3), "a_float: 3.0\n"),
+            (dict(a_float=np.float32(0.5)), "a_float: 0.5\n"),
+            (dict(an_int=np.int64(4)), "an_int: 4\n"),
+            (dict(a_bool=np.bool_(True)), "a_bool: true\n"),
+            (dict(a_float_or_str=2), "a_float_or_str: 2.0\n"),
+            (dict(a_float_or_str="x"), "a_float_or_str: !!str 'x'\n"),
+        ]
+        for kwargs, expected_line in cases:
+            actual_doc = yaml_dump_typed(
+                OptionalNumbers(**kwargs), defaults=OptionalNumbers()
+            )
+            self.assertEqual(actual_doc, expected_line)
+        # Values that are not numbers are still rejected.
+        with self.assertRaisesRegex(RuntimeError, "did not match"):
+            yaml_dump_typed(OptionalNumbers(a_float="1.0"))
+        with self.assertRaisesRegex(RuntimeError, "did not match"):
+            yaml_dump_typed(OptionalNumbers(an_int=1.5))
+
     def test_write_optional_bytes(self):
         """Smoke test for compatibility for the non-json scalar: binary. This
         is trivial in python, but awkward in C++. To maintain parity with the
