@@ -6,6 +6,7 @@ This is gui code; to test changes, please manually run
 """
 
 from functools import partial
+import numbers
 
 from IPython.display import display
 from ipywidgets import FloatSlider, Layout
@@ -14,6 +15,15 @@ import numpy as np
 from pydrake.common.jupyter import process_ipywidget_events
 from pydrake.multibody.tree import JointIndex
 from pydrake.systems.framework import PublishEvent, VectorSystem
+
+
+def _css_width(length):
+    """Returns the given slider length as a CSS width. A bare number is taken
+    to be a number of pixels (a unitless number is not a valid CSS width).
+    """
+    if isinstance(length, numbers.Real):
+        return f"{length}px"
+    return str(length)
 
 
 class JointSliders(VectorSystem):
@@ -52,7 +62,8 @@ class JointSliders(VectorSystem):
                          Joint.
             resolution:  A scalar or vector of length robot.num_positions()
                          that specifies the discretization of the slider.
-            length:      The length of the sliders.
+            length:      The length of the sliders, either a number of pixels
+                         or a CSS width string (e.g., "50%").
             update_period_sec: Specifies how often the window update() method
                          gets called.
         """
@@ -103,7 +114,7 @@ class JointSliders(VectorSystem):
                         continuous_update=True,
                         description=description,
                         style={"description_width": "initial"},
-                        layout=Layout(width=f"'{length}'"),
+                        layout=Layout(width=_css_width(length)),
                     )
                 )
                 display(self._slider[k])
@@ -190,9 +201,8 @@ def MakeJointSlidersThatPublishOnCallback(
                       Joint.
         resolution:   A scalar or vector of length robot.num_positions()
                       that specifies the step argument of the FloatSlider.
-        length:       The length of the sliders, which will be passed as a
-                      string to the CSS width field and can be any valid CSS
-                      entry (e.g. 100, 100px).
+        length:       The length of the sliders, either a number of pixels or
+                      a CSS width string (e.g., "100px" or "50%").
         continuous_update: The continuous_update field for the FloatSliders.
                       The default ``True`` means that this method will publish/
                       callback as the sliders are dragged.  ``False`` means
@@ -251,7 +261,7 @@ def MakeJointSlidersThatPublishOnCallback(
                 continuous_update=continuous_update,
                 description=description,
                 style={"description_width": "initial"},
-                layout=Layout(width=f"'{length}'"),
+                layout=Layout(width=_css_width(length)),
             )
             slider.observe(
                 partial(_slider_callback, index=index), names="value"

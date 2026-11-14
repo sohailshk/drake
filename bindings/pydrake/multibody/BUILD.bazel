@@ -421,6 +421,15 @@ drake_jupyter_py_binary(
 )
 
 drake_py_unittest(
+    name = "jupyter_widgets_test",
+    deps = [
+        ":jupyter_widgets_py",
+        ":parsing_py",
+        ":plant_py",
+    ],
+)
+
+drake_py_unittest(
     name = "parsing_test",
     data = [
         "//multibody/benchmarks/acrobot:models",
